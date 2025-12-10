@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.SERVER_URL || 'http://69.62.72.53:8001/api';
+// const API_BASE_URL = import.meta.env.SERVER_URL || 'http://69.62.72.53:8001/api';
+const API_BASE_URL = '';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
