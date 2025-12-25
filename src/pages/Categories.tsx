@@ -3,6 +3,7 @@ import { Loader2, Plus, Edit2, Trash2, X, FolderPlus, AlertCircle } from 'lucide
 
 // Mock axios instance for demonstration - replace with your actual import
 import axiosInstance from '../lib/axios';
+import Navigation from '../components/Navigation';
 // Interfaces
 interface Category {
   _id: string;
@@ -140,6 +141,8 @@ export default function CategoryManagement() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+            <Navigation />
+      
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
