@@ -183,6 +183,7 @@ export default function CategoryManagement() {
     // If category has images, verify security code
     if (deleteCategoryInfo.imageCount > 0) {
       const correctCode = getCurrentSecurityCode();
+      console.log(correctCode);
       
       if (securityCode.trim() !== correctCode) {
         setSecurityCodeError(`Invalid code. Contact Patel Saheb for the current code`);
