@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navigation from '../components/Navigation';
 import axiosInstance from '../lib/axios';
-import { Loader2, AlertCircle, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, AlertCircle, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 
 // ---------------------------
 // Interfaces
@@ -136,6 +136,13 @@ export default function ImageListing() {
   };
 
   // ---------------------------
+  // Handle Image Click - Open in New Tab
+  // ---------------------------
+  const handleImageClick = (imageUrl: string) => {
+    window.open(imageUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  // ---------------------------
   // Handle Category Change
   // ---------------------------
   const handleCategoryChange = (categoryId: string) => {
@@ -159,7 +166,8 @@ export default function ImageListing() {
   // ---------------------------
   // Delete Image Handler
   // ---------------------------
-  const handleDeleteClick = (image: Image) => {
+  const handleDeleteClick = (e: React.MouseEvent, image: Image) => {
+    e.stopPropagation(); // Prevent image click when clicking delete
     setImageToDelete(image);
     setShowDeleteModal(true);
   };
@@ -236,7 +244,7 @@ export default function ImageListing() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Image Gallery</h1>
           <p className="text-gray-600 mt-2">
-            Browse and filter your image collection
+            Browse and filter your image collection. Click on any image to view in full size.
           </p>
         </div>
 
@@ -320,7 +328,8 @@ export default function ImageListing() {
                 {images.map((image) => (
                   <div
                     key={image._id}
-                    className="group relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow bg-white"
+                    className="group relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow bg-white cursor-pointer"
+                    onClick={() => handleImageClick(image.imageUrl)}
                   >
                     <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden relative">
                       <img
@@ -329,10 +338,16 @@ export default function ImageListing() {
                         className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-300"
                       />
                       
+                      {/* View Icon Overlay */}
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center">
+                        <ExternalLink className="w-10 h-10 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </div>
+                      
+                      {/* Delete Button */}
                       <button
-                        onClick={() => handleDeleteClick(image)}
+                        onClick={(e) => handleDeleteClick(e, image)}
                         disabled={deletingId === image._id}
-                        className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 disabled:bg-gray-400"
+                        className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 disabled:bg-gray-400 z-10"
                         title="Delete image"
                       >
                         {deletingId === image._id ? (

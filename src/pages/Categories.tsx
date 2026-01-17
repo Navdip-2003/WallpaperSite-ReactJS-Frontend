@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Plus, Edit2, Trash2, X, FolderPlus, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, X, FolderPlus, AlertCircle, ImageIcon } from 'lucide-react';
 
 // Mock axios instance for demonstration - replace with your actual import
 import axiosInstance from '../lib/axios';
 import Navigation from '../components/Navigation';
+
 // Interfaces
 interface Category {
   _id: string;
   name: string;
+}
+
+interface DeleteCategoryInfo {
+  category: Category;
+  imageCount: number;
+  loading: boolean;
 }
 
 export default function CategoryManagement() {
@@ -25,8 +32,10 @@ export default function CategoryManagement() {
   
   // Delete Modal States
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [deleteCategoryInfo, setDeleteCategoryInfo] = useState<DeleteCategoryInfo | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [securityCode, setSecurityCode] = useState('');
+  const [securityCodeError, setSecurityCodeError] = useState('');
 
   // Fetch Categories on Mount
   useEffect(() => {
@@ -50,6 +59,29 @@ export default function CategoryManagement() {
       setError(err.response?.data?.message || 'Failed to fetch categories');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch Image Count for Category
+  const fetchCategoryImageCount = async (categoryId: string): Promise<number> => {
+    try {
+      const res = await axiosInstance.get(`/images?category=${categoryId}&limit=1`);
+      
+      // Check different possible response structures
+      if (res.data?.pagination?.totalRecords !== undefined) {
+        return res.data.pagination.totalRecords;
+      } else if (res.data?.totalRecords !== undefined) {
+        return res.data.totalRecords;
+      } else if (res.data?.data && Array.isArray(res.data.data)) {
+        // Fallback: if pagination info not available, fetch all to count
+        const allRes = await axiosInstance.get(`/images?category=${categoryId}`);
+        return allRes.data?.data?.length || 0;
+      }
+      
+      return 0;
+    } catch (err) {
+      console.error('Error fetching image count:', err);
+      return 0;
     }
   };
 
@@ -109,25 +141,60 @@ export default function CategoryManagement() {
   };
 
   // Open Delete Modal
-  const openDeleteModal = (category: Category) => {
-    setCategoryToDelete(category);
+  const openDeleteModal = async (category: Category) => {
+    // Initialize with loading state
+    setDeleteCategoryInfo({
+      category,
+      imageCount: 0,
+      loading: true,
+    });
     setShowDeleteModal(true);
+
+    // Fetch image count in background
+    const imageCount = await fetchCategoryImageCount(category._id);
+    
+    setDeleteCategoryInfo({
+      category,
+      imageCount,
+      loading: false,
+    });
   };
 
   // Close Delete Modal
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
-    setCategoryToDelete(null);
+    setDeleteCategoryInfo(null);
+    setSecurityCode('');
+    setSecurityCodeError('');
+  };
+
+  // Generate current time-based code (HHMM format)
+  const getCurrentSecurityCode = (): string => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}${minutes}`;
   };
 
   // Confirm Delete
   const confirmDelete = async () => {
-    if (!categoryToDelete) return;
+    if (!deleteCategoryInfo) return;
+
+    // If category has images, verify security code
+    if (deleteCategoryInfo.imageCount > 0) {
+      const correctCode = getCurrentSecurityCode();
+      
+      if (securityCode.trim() !== correctCode) {
+        setSecurityCodeError(`Invalid code. Contact Patel Saheb for the current code`);
+        return;
+      }
+    }
 
     setDeleteLoading(true);
+    setSecurityCodeError('');
     
     try {
-      await axiosInstance.delete(`/categories/${categoryToDelete._id}`);
+      await axiosInstance.delete(`/categories/${deleteCategoryInfo.category._id}`);
       await fetchCategories();
       closeDeleteModal();
     } catch (err: any) {
@@ -141,7 +208,7 @@ export default function CategoryManagement() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-            <Navigation />
+      <Navigation />
       
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
@@ -312,23 +379,115 @@ export default function CategoryManagement() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && categoryToDelete && (
+      {/* Delete Confirmation Modal with Image Count */}
+      {showDeleteModal && deleteCategoryInfo && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-start mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h2 className="text-xl font-bold text-gray-900 mb-2">Delete Category</h2>
-                <p className="text-gray-600">
+                <p className="text-gray-600 mb-3">
                   Are you sure you want to delete the category{' '}
-                  <strong className="text-gray-900">"{categoryToDelete.name}"</strong>?
+                  <strong className="text-gray-900">"{deleteCategoryInfo.category.name}"</strong>?
                 </p>
-                <p className="text-sm text-red-600 mt-2">
-                  This action cannot be undone and may affect associated images.
-                </p>
+
+                {/* Image Count Info */}
+                {deleteCategoryInfo.loading ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+                    <p className="text-sm text-blue-800">
+                      Checking for associated images...
+                    </p>
+                  </div>
+                ) : (
+                  <div className={`border rounded-lg p-4 ${
+                    deleteCategoryInfo.imageCount > 0 
+                      ? 'bg-amber-50 border-amber-200' 
+                      : 'bg-green-50 border-green-200'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <ImageIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                        deleteCategoryInfo.imageCount > 0 
+                          ? 'text-amber-600' 
+                          : 'text-green-600'
+                      }`} />
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${
+                          deleteCategoryInfo.imageCount > 0 
+                            ? 'text-amber-900' 
+                            : 'text-green-900'
+                        }`}>
+                          {deleteCategoryInfo.imageCount > 0 ? (
+                            <>
+                              {deleteCategoryInfo.imageCount} image{deleteCategoryInfo.imageCount !== 1 ? 's' : ''} found
+                            </>
+                          ) : (
+                            'No images in this category'
+                          )}
+                        </p>
+                        {deleteCategoryInfo.imageCount > 0 && (
+                          <p className="text-xs text-amber-700 mt-1">
+                            Deleting this category will affect {deleteCategoryInfo.imageCount} image{deleteCategoryInfo.imageCount !== 1 ? 's' : ''}. 
+                            These images may become uncategorized or inaccessible.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Warning Message */}
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600 font-medium">
+                    ⚠️ This action cannot be undone
+                  </p>
+                </div>
+
+                {/* Security Code Input - Only show if images exist */}
+                {!deleteCategoryInfo.loading && deleteCategoryInfo.imageCount > 0 && (
+                  <div className="mt-4 p-4 bg-orange-50 border-2 border-orange-300 rounded-lg">
+                    <div className="flex items-start gap-2 mb-3">
+                      <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-orange-900 mb-1">
+                          Security Verification Required
+                        </p>
+                        <p className="text-xs text-orange-700">
+                          This category contains {deleteCategoryInfo.imageCount} image{deleteCategoryInfo.imageCount !== 1 ? 's' : ''}. 
+                          Contact <strong>Patel Saheb</strong> to get the security code before proceeding.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Enter Security Code <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={securityCode}
+                        onChange={(e) => {
+                          setSecurityCode(e.target.value);
+                          setSecurityCodeError('');
+                        }}
+                        placeholder="Enter 4-digit code"
+                        maxLength={4}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow"
+                        disabled={deleteLoading}
+                      />
+                      {securityCodeError && (
+                        <p className="mt-2 text-sm text-red-600 flex items-start gap-1">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          {securityCodeError}
+                        </p>
+                      )}
+                      
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -342,7 +501,11 @@ export default function CategoryManagement() {
               </button>
               <button
                 onClick={confirmDelete}
-                disabled={deleteLoading}
+                disabled={
+                  deleteLoading || 
+                  deleteCategoryInfo.loading || 
+                  (deleteCategoryInfo.imageCount > 0 && !securityCode.trim())
+                }
                 className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2 font-medium"
               >
                 {deleteLoading ? (
@@ -351,7 +514,10 @@ export default function CategoryManagement() {
                     Deleting...
                   </>
                 ) : (
-                  'Delete'
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Category
+                  </>
                 )}
               </button>
             </div>
